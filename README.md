@@ -16,7 +16,6 @@ godepbeat [options] <path-to-go-project>
 
 Options:
   -json      Output in JSON format
-  -quiet     Suppress progress output
 ```
 
 ## Example
@@ -24,17 +23,27 @@ Options:
 ```
 $ godepbeat /path/to/your/project
 Analyzing Go project at: /path/to/your/project
-Found 25 dependencies in go.mod
-Module: github.com/your/project
-Go Version: 1.18
-Analyzing: github.com/some/dependency                      [Active (Last published: Jan 25, 2023)]
-Analyzing: github.com/archived/dependency                  [ARCHIVED (Last published: Mar 5, 2020)]
-...
+Found 90 dependencies in go.mod
+Module: /path/to/your/project
+Go Version: 1.24.2
+Direct Dependencies: 30
+
+Archived (Dead) Go Dependencies:
+github.com/avast/retry-go
+          Last Published: Oct 13, 2020
+github.com/golang/mock
+          Last Published: Jun 11, 2021
+github.com/pkg/errors
+          Last Published: Jan 14, 2020
+github.com/opentracing/opentracing-go
+          Last Published: Jul 1, 2020
+github.com/patrickmn/go-cache
+          Last Published: Jul 22, 2017
 
 Summary:
-- Total Dependencies: 25
-- Direct Dependencies: 18
-- Unmaintained Dependencies: 3
+- Total Dependencies: 90
+- Direct Dependencies: 30
+- Unmaintained Dependencies: 5
 ```
 
 ## License

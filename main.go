@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/Bhupesh-V/godepbeat/heartbeat"
 	parser "github.com/Bhupesh-V/godepbeat/parsers/modfile"
@@ -107,10 +108,14 @@ func outputText(info *parser.ModuleInfo, archived []heartbeat.RepoStatus) {
 
 	// Print archived GitHub dependencies if any
 	if archivedCount > 0 {
-		fmt.Println("\nArchived GitHub Dependencies:")
+		fmt.Println("\nArchived (Dead) Go Dependencies:")
 		for _, repo := range archived {
 			if repo.IsArchived {
-				fmt.Printf("  %s \n", repo.ModulePath)
+				fmt.Printf("%s\n", repo.ModulePath)
+				if !repo.LastPublished.IsZero() {
+					fmt.Printf(strings.Repeat(" ", 10))
+					fmt.Printf("Last Published: %s\n", repo.LastPublished.Format("Jan 2, 2006"))
+				}
 			}
 		}
 	}

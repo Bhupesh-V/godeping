@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
@@ -77,7 +76,7 @@ func (c *Client) CheckArchivedDependenciesWithProgress(
 			}
 
 			// Check package status on pkg.go.dev
-			statusCode, _, publishDate, err := c.checkPackageStatus(filepath.Join(dep.Path, dep.Version))
+			statusCode, _, publishDate, err := c.checkPackageStatus(dep.Path)
 			status.StatusCode = statusCode
 			status.LastPublished = publishDate
 
@@ -155,8 +154,6 @@ func extractPublishDate(html string) time.Time {
 	// Look for the published date in the span with data-test-id="UnitHeader-commitTime"
 	datePattern := regexp.MustCompile(`<span[^>]*data-test-id="UnitHeader-commitTime"[^>]*>([^<]+)</span>`)
 	matches := datePattern.FindStringSubmatch(html)
-
-	fmt.Println(strings.Contains(html, `data-test-id="UnitHeader-commitTime"`))
 
 	if len(matches) < 2 {
 		return time.Time{} // Return zero time if not found
