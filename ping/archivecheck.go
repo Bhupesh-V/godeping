@@ -14,14 +14,14 @@ import (
 
 // RepoStatus contains information about a repository's status
 type RepoStatus struct {
-	ModulePath    string
-	Owner         string
-	Repo          string
-	IsArchived    bool
-	StatusCode    int
-	Error         string
-	LastPublished time.Time
-	Reason        string
+	ModulePath    string    `json:"module_path"`
+	Owner         string    `json:"-"`
+	Repo          string    `json:"-"`
+	IsArchived    bool      `json:"-"`
+	StatusCode    int       `json:"-"`
+	Error         string    `json:"-"`
+	LastPublished time.Time `json:"last_published"`
+	Reason        string    `json:"-"`
 }
 
 // Client is an HTTP client for checking module status

@@ -19,6 +19,12 @@ func main() {
 	// Parse flags
 	flag.Parse()
 
+	// When JSON output is enabled, quiet mode is automatically turned on
+	// unless explicitly overridden
+	if *jsonOutput {
+		*quiet = true
+	}
+
 	// Check for the required positional argument
 	args := flag.Args()
 	if len(args) < 1 {
@@ -30,7 +36,9 @@ func main() {
 	projectPath := args[0]
 
 	// Example usage of the flags and args
-	fmt.Printf("Analyzing Go project at: %s\n", projectPath)
+	if !*quiet {
+		fmt.Printf("Analyzing Go project at: %s\n", projectPath)
+	}
 
 	// Parse the go.mod file
 	moduleInfo, err := parser.ParseGoMod(projectPath)
@@ -39,9 +47,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Printf("Found %d dependencies in go.mod\n", len(moduleInfo.Requires))
-	fmt.Printf("Module: %s\n", moduleInfo.ModuleName)
-	fmt.Printf("Go Version: %s\n", moduleInfo.GoVersion)
+	if !*jsonOutput {
+		fmt.Printf("Found %d dependencies in go.mod\n", len(moduleInfo.Requires))
+		fmt.Printf("Module: %s\n", moduleInfo.ModuleName)
+		fmt.Printf("Go Version: %s\n", moduleInfo.GoVersion)
+	}
 
 	// Define a progress callback function
 	progressCallback := func(dep string, status string) {
@@ -65,19 +75,41 @@ func main() {
 	}
 }
 
-func outputJSON(info *parser.ModuleInfo, archived []heartbeat.RepoStatus) {
+func outputJSON(info *parser.ModuleInfo, repoStatus []heartbeat.RepoStatus) {
+	// Count direct dependencies
+	directDeps := 0
+
+	// Get all direct dependencies
+	var directDependencies []parser.Dependency
+	for _, dep := range info.Requires {
+		if !dep.Indirect {
+			directDeps++
+			directDependencies = append(directDependencies, dep)
+		}
+	}
+
+	var archived []heartbeat.RepoStatus
+	// Count archived dependencies
+	for _, repo := range repoStatus {
+		if repo.IsArchived {
+			archived = append(archived, repo)
+		}
+	}
+
 	type Output struct {
-		Module       string                 `json:"module"`
-		GoVersion    string                 `json:"goVersion"`
-		Dependencies []parser.Dependency    `json:"dependencies"`
-		ArchivedDeps []heartbeat.RepoStatus `json:"archivedDependencies"`
+		Module               string                 `json:"module"`
+		GoVersion            string                 `json:"goVersion"`
+		TotalDependencies    int                    `json:"totalDependencies"`
+		DirectDependencies   int                    `json:"directDependencies"`
+		ArchivedDependencies []heartbeat.RepoStatus `json:"deadDirectDependencies"`
 	}
 
 	output := Output{
-		Module:       info.ModuleName,
-		GoVersion:    info.GoVersion,
-		Dependencies: info.Requires,
-		ArchivedDeps: archived,
+		Module:               info.ModuleName,
+		GoVersion:            info.GoVersion,
+		TotalDependencies:    len(info.Requires),
+		DirectDependencies:   directDeps,
+		ArchivedDependencies: archived,
 	}
 
 	jsonData, err := json.MarshalIndent(output, "", "  ")

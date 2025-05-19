@@ -8,6 +8,8 @@ A Go tool to check the health of your Go module dependencies.
 godeping [options] <path-to-go-project>
 
 Options:
+  -json
+        Output in JSON format
   -quiet
         Suppress progress output
 ```
