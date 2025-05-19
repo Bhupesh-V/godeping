@@ -2,6 +2,12 @@
 
 A Go tool to check the health of your Go module dependencies.
 
+## Installation
+
+```
+go install github.com/Bhupesh-V/godeping@latest
+```
+
 ## Usage
 
 ```
@@ -81,6 +87,24 @@ godeping -json /path/to/your/project
     }
   ]
 }
+```
+
+## Alternatives
+
+If you fancy freedom.
+
+```
+go mod edit -json \
+  | jq -r '.Require[].Path' \
+  | grep github.com \
+  | while read -r path; do
+    # Strip github.com/
+    repo=$(echo "$path" | sed -E 's|^github.com/||')
+    # Remove /v2, /v3, etc. at the end
+    clean_repo=$(echo "$repo" | sed -E 's|/v[0-9]+$||')
+    echo -n "$clean_repo: "
+    gh repo view "$clean_repo" --json isArchived --jq '.isArchived' 2>/dev/null || echo "not found"
+done
 ```
 
 ## License
