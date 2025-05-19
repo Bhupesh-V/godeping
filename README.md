@@ -1,6 +1,6 @@
 # godeping
 
-A Go tool to check the health of your Go module dependencies.
+A Go tool to check the health of your Go project dependencies.
 
 ## Installation
 
@@ -10,7 +10,15 @@ go install github.com/Bhupesh-V/godeping@latest
 
 ## Usage
 
+Quick start (assuming you are in the root of your Go project):
+
+```bash
+godeping -quiet .
 ```
+
+All options:
+
+```bash
 godeping [options] <path-to-go-project>
 
 Options:
@@ -93,7 +101,7 @@ godeping -json /path/to/your/project
 
 If you fancy freedom.
 
-```
+```bash
 go mod edit -json \
   | jq -r '.Require[].Path' \
   | grep github.com \
