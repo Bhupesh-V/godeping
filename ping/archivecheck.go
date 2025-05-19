@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	parser "github.com/Bhupesh-V/godepbeat/parsers/modfile"
+	parser "github.com/Bhupesh-V/godeping/parsers/modfile"
 )
 
 // RepoStatus contains information about a repository's status

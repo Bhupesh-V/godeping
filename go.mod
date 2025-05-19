@@ -1,4 +1,4 @@
-module github.com/Bhupesh-V/godepbeat
+module github.com/Bhupesh-V/godeping
 
 go 1.23.4
 

@@ -7,8 +7,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/Bhupesh-V/godepbeat/heartbeat"
-	parser "github.com/Bhupesh-V/godepbeat/parsers/modfile"
+	parser "github.com/Bhupesh-V/godeping/parsers/modfile"
+	heartbeat "github.com/Bhupesh-V/godeping/ping"
 )
 
 func main() {

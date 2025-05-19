@@ -1,27 +1,21 @@
-# godepbeat
+# godeping
 
 A Go tool to check the health of your Go module dependencies.
-
-## Features
-
-- Analyzes `go.mod` files to extract dependency information
-- Checks if dependencies are maintained or archived
-- Uses concurrent requests (10 at a time) to efficiently check multiple dependencies
-- Provides both text and JSON output formats
 
 ## Usage
 
 ```
-godepbeat [options] <path-to-go-project>
+godeping [options] <path-to-go-project>
 
 Options:
-  -json      Output in JSON format
+  -quiet
+        Suppress progress output
 ```
 
 ## Example
 
 ```
-$ godepbeat /path/to/your/project
+$ godeping -quiet /path/to/your/project
 Analyzing Go project at: /path/to/your/project
 Found 90 dependencies in go.mod
 Module: /path/to/your/project
