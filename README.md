@@ -22,7 +22,7 @@ Module: /path/to/your/project
 Go Version: 1.24.2
 Direct Dependencies: 30
 
-Archived (Dead) Go Dependencies:
+Archived (Dead) Direct Dependencies:
 github.com/avast/retry-go
           Last Published: Oct 13, 2020
 github.com/golang/mock

@@ -108,7 +108,7 @@ func outputText(info *parser.ModuleInfo, archived []heartbeat.RepoStatus) {
 
 	// Print archived GitHub dependencies if any
 	if archivedCount > 0 {
-		fmt.Println("\nArchived (Dead) Go Dependencies:")
+		fmt.Println("\nArchived (Dead) Direct Dependencies:")
 		for _, repo := range archived {
 			if repo.IsArchived {
 				fmt.Printf("%s\n", repo.ModulePath)
