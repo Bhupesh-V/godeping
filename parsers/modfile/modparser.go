@@ -2,7 +2,7 @@ package parser
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 
 	"golang.org/x/mod/modfile"
@@ -26,7 +26,7 @@ type Dependency struct {
 func ParseGoMod(projectPath string) (*ModuleInfo, error) {
 	// Find and read the go.mod file
 	modPath := filepath.Join(projectPath, "go.mod")
-	data, err := ioutil.ReadFile(modPath)
+	data, err := os.ReadFile(modPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read go.mod: %v", err)
 	}
@@ -53,20 +53,4 @@ func ParseGoMod(projectPath string) (*ModuleInfo, error) {
 	}
 
 	return info, nil
-}
-
-// GetDirectDependencies returns only direct dependencies (not indirect)
-func (m *ModuleInfo) GetDirectDependencies() []Dependency {
-	var direct []Dependency
-	for _, dep := range m.Requires {
-		if !dep.Indirect {
-			direct = append(direct, dep)
-		}
-	}
-	return direct
-}
-
-// GetAllDependencies returns all dependencies
-func (m *ModuleInfo) GetAllDependencies() []Dependency {
-	return m.Requires
 }

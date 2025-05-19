@@ -1,55 +1,52 @@
-package githubchecker
+package heartbeat
 
 import (
-	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
-	"github.com/Bhupesh-V/godepbeat/parser"
+	parser "github.com/Bhupesh-V/godepbeat/parsers/modfile"
 )
 
 // RepoStatus contains information about a repository's status
 type RepoStatus struct {
-	ModulePath string
-	Owner      string
-	Repo       string
-	IsArchived bool
-	Error      string
+	ModulePath    string
+	Owner         string
+	Repo          string
+	IsArchived    bool
+	StatusCode    int
+	Error         string
+	LastPublished time.Time
+	Reason        string
 }
 
-// GitHubResponse represents the relevant fields from GitHub API response
-type GitHubResponse struct {
-	Archived bool `json:"archived"`
-}
-
-// Client is a GitHub API client with rate limiting
+// Client is an HTTP client for checking module status
 type Client struct {
 	httpClient *http.Client
-	token      string
+	token      string // Kept for backward compatibility
 }
 
-// NewClient creates a new GitHub API client
-func NewClient(token string) *Client {
+// NewClient creates a new client
+func NewClient() *Client {
 	return &Client{
-		httpClient: &http.Client{Timeout: 10 * time.Second},
-		token:      token,
+		httpClient: &http.Client{Timeout: 10 * time.Minute},
 	}
 }
 
 // ProgressCallback is a type for the progress callback function
 type ProgressCallback func(dependency string, status string)
 
-// CheckArchivedDependenciesWithProgress checks which GitHub-hosted dependencies are archived
-// and reports final status via callback
+// CheckArchivedDependenciesWithProgress checks which dependencies appear to be archived
+// by checking their status on pkg.go.dev
 func (c *Client) CheckArchivedDependenciesWithProgress(
 	deps []parser.Dependency,
 	progress ProgressCallback,
 ) []RepoStatus {
-	results := make([]RepoStatus, 0, len(deps))
-
 	// Filter out indirect dependencies
 	var directDeps []parser.Dependency
 	for _, dep := range deps {
@@ -58,116 +55,154 @@ func (c *Client) CheckArchivedDependenciesWithProgress(
 		}
 	}
 
-	// Use a simple rate limiter to avoid hitting GitHub API limits
-	rateLimiter := time.Tick(time.Second / 10) // Max 10 requests per second
+	resultChan := make(chan RepoStatus, len(directDeps))
+	var wg sync.WaitGroup
 
+	// Create a semaphore channel to limit concurrent requests to 10
+	semaphore := make(chan struct{}, 10)
+
+	// Launch a goroutine for each dependency
 	for _, dep := range directDeps {
-		// Wait for rate limiter
-		<-rateLimiter
+		wg.Add(1)
+		go func(dep parser.Dependency) {
+			defer wg.Done()
 
-		// Check if it's a GitHub dependency
-		owner, repo, isGitHub := parseGitHubPath(dep.Path)
-		if !isGitHub {
-			progress(dep.Path, "Not a GitHub dependency")
-			continue
-		}
+			// Acquire semaphore slot
+			semaphore <- struct{}{}
+			defer func() { <-semaphore }()
 
-		status := RepoStatus{
-			ModulePath: dep.Path,
-			Owner:      owner,
-			Repo:       repo,
-		}
-
-		// Check if archived
-		isArchived, err := c.isRepoArchived(owner, repo)
-		if err != nil {
-			status.Error = err.Error()
-			progress(dep.Path, "Error: "+err.Error())
-		} else {
-			status.IsArchived = isArchived
-			if isArchived {
-				progress(dep.Path, "ARCHIVED")
-			} else {
-				progress(dep.Path, "Active")
+			// Initialize status
+			status := RepoStatus{
+				ModulePath: dep.Path,
 			}
-		}
 
+			// Check package status on pkg.go.dev
+			statusCode, _, publishDate, err := c.checkPackageStatus(filepath.Join(dep.Path, dep.Version))
+			status.StatusCode = statusCode
+			status.LastPublished = publishDate
+
+			if err != nil {
+				status.Error = err.Error()
+				progress(dep.Path, "Error: "+err.Error())
+			} else {
+				// Primary check: Is the published date older than 2 year?
+				if !publishDate.IsZero() && time.Since(publishDate) > 2*365*24*time.Hour {
+					status.IsArchived = true
+					status.Reason = fmt.Sprintf("Not updated since %s", publishDate.Format("Jan 2, 2006"))
+					progress(dep.Path, "ARCHIVED (Last published: "+publishDate.Format("Jan 2, 2006")+")")
+				} else if statusCode == http.StatusNotFound {
+					// Secondary check: Is the package not found on pkg.go.dev?
+					status.IsArchived = true
+					status.Reason = "404 from pkg.go.dev"
+					progress(dep.Path, "ARCHIVED (Not found on pkg.go.dev)")
+				} else {
+					// Recent publish date and status code is OK
+					progress(dep.Path, "Active (Last published: "+publishDate.Format("Jan 2, 2006")+")")
+				}
+			}
+
+			resultChan <- status
+		}(dep)
+	}
+
+	// Wait for all goroutines to complete
+	go func() {
+		wg.Wait()
+		close(resultChan)
+	}()
+
+	// Collect results
+	results := make([]RepoStatus, 0, len(directDeps))
+	for status := range resultChan {
 		results = append(results, status)
 	}
 
 	return results
 }
 
-// isRepoArchived checks if a GitHub repository is archived
-func (c *Client) isRepoArchived(owner, repo string) (bool, error) {
-	url := fmt.Sprintf("https://api.github.com/repos/%s/%s", owner, repo)
+// checkPackageStatus checks if a package exists on pkg.go.dev and extracts info
+func (c *Client) checkPackageStatus(pkgPath string) (statusCode int, repoURL string, publishDate time.Time, err error) {
+	url := fmt.Sprintf("https://pkg.go.dev/%s", pkgPath)
 
-	req, err := http.NewRequest("GET", url, nil)
+	resp, err := c.httpClient.Get(url)
 	if err != nil {
-		return false, err
-	}
-
-	// Add authentication if token is provided
-	if c.token != "" {
-		req.Header.Add("Authorization", "token "+c.token)
-	}
-
-	req.Header.Add("Accept", "application/vnd.github.v3+json")
-	req.Header.Add("User-Agent", "godepbeat")
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return false, err
+		return 0, "", time.Time{}, err
 	}
 	defer resp.Body.Close()
 
+	// Return the status code regardless
+	statusCode = resp.StatusCode
+
+	// If it's not a successful response, return early
 	if resp.StatusCode != http.StatusOK {
-		return false, fmt.Errorf("GitHub API returned status: %s", resp.Status)
+		return statusCode, "", time.Time{}, nil
 	}
 
-	var ghResp GitHubResponse
-	if err := json.NewDecoder(resp.Body).Decode(&ghResp); err != nil {
-		return false, err
+	// Try to extract repository URL and publish date from HTML
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return statusCode, "", time.Time{}, err
 	}
 
-	return ghResp.Archived, nil
+	htmlContent := string(body)
+	publishDate = extractPublishDate(htmlContent)
+
+	return statusCode, repoURL, publishDate, nil
 }
 
-// parseGitHubPath extracts owner and repo from a GitHub module path
-func parseGitHubPath(path string) (owner, repo string, isGitHub bool) {
-	// Check if it's a GitHub URL
-	if !strings.HasPrefix(path, "github.com/") {
-		return "", "", false
+// extractPublishDate extracts the last published date from pkg.go.dev HTML
+func extractPublishDate(html string) time.Time {
+	// Look for the published date in the span with data-test-id="UnitHeader-commitTime"
+	datePattern := regexp.MustCompile(`<span[^>]*data-test-id="UnitHeader-commitTime"[^>]*>([^<]+)</span>`)
+	matches := datePattern.FindStringSubmatch(html)
+
+	fmt.Println(strings.Contains(html, `data-test-id="UnitHeader-commitTime"`))
+
+	if len(matches) < 2 {
+		return time.Time{} // Return zero time if not found
 	}
 
-	parts := strings.Split(path, "/")
-	if len(parts) < 3 {
-		return "", "", false
+	// Parse the date string (format: "Jan 23, 2024")
+	dateStr := strings.TrimSpace(matches[1])
+	dateStr = strings.TrimPrefix(dateStr, "Published:")
+	dateStr = strings.TrimSpace(dateStr)
+
+	// Try different formats as the exact format might vary
+	formats := []string{
+		"Jan 2, 2006",
+		"Jan 02, 2006",
+		"January 2, 2006",
+		"January 02, 2006",
 	}
 
-	// Handle submodules and packages
-	owner = parts[1]
-	repo = parts[2]
-
-	// Handle repos with .git suffix
-	repo = strings.TrimSuffix(repo, ".git")
-
-	// Remove version suffix (e.g., /v2, /v3) from repo name
-	repo = removeVersionSuffix(repo)
-
-	return owner, repo, true
-}
-
-// removeVersionSuffix removes version suffixes like /v2, /v3 from repo names
-func removeVersionSuffix(repo string) string {
-	// Match common version patterns like v1, v2, etc.
-	versionPattern := regexp.MustCompile(`^(.*?)(/v\d+)?$`)
-	matches := versionPattern.FindStringSubmatch(repo)
-
-	if len(matches) > 1 {
-		return matches[1] // Return the repo name without version suffix
-
+	for _, format := range formats {
+		date, err := time.Parse(format, dateStr)
+		if err == nil {
+			return date
+		}
 	}
 
-	return repo
+	// If parsing fails with standard formats, try a more flexible approach
+	// Extract month, day, year
+	parts := strings.Split(dateStr, " ")
+	if len(parts) >= 3 {
+		// Try to build a standardized date string
+		month := parts[0]
+		day := strings.TrimSuffix(parts[1], ",")
+		year := parts[2]
+
+		// Ensure day is 2 digits
+		if len(day) == 1 {
+			day = "0" + day
+		}
+
+		// Try parsing again
+		standardized := fmt.Sprintf("%s %s, %s", month, day, year)
+		date, err := time.Parse("Jan 02, 2006", standardized)
+		if err == nil {
+			return date
+		}
+	}
+
+	return time.Time{} // Return zero time if parsing fails
 }

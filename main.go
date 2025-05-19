@@ -5,16 +5,14 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"strings"
 
-	githubchecker "github.com/Bhupesh-V/godepbeat/heartbeat"
-	"github.com/Bhupesh-V/godepbeat/parser"
+	"github.com/Bhupesh-V/godepbeat/heartbeat"
+	parser "github.com/Bhupesh-V/godepbeat/parsers/modfile"
 )
 
 func main() {
 	// Define flags
 	jsonOutput := flag.Bool("json", false, "Output in JSON format")
-	githubToken := flag.String("github-token", "", "GitHub API token for higher rate limits")
 	quiet := flag.Bool("quiet", false, "Suppress progress output")
 
 	// Parse flags
@@ -52,7 +50,7 @@ func main() {
 	}
 
 	// Always check for archived GitHub dependencies
-	client := githubchecker.NewClient(*githubToken)
+	client := heartbeat.NewClient()
 	archivedResults := client.CheckArchivedDependenciesWithProgress(
 		moduleInfo.Requires,
 		progressCallback,
@@ -66,12 +64,12 @@ func main() {
 	}
 }
 
-func outputJSON(info *parser.ModuleInfo, archived []githubchecker.RepoStatus) {
+func outputJSON(info *parser.ModuleInfo, archived []heartbeat.RepoStatus) {
 	type Output struct {
-		Module       string                     `json:"module"`
-		GoVersion    string                     `json:"goVersion"`
-		Dependencies []parser.Dependency        `json:"dependencies"`
-		ArchivedDeps []githubchecker.RepoStatus `json:"archivedDependencies"`
+		Module       string                 `json:"module"`
+		GoVersion    string                 `json:"goVersion"`
+		Dependencies []parser.Dependency    `json:"dependencies"`
+		ArchivedDeps []heartbeat.RepoStatus `json:"archivedDependencies"`
 	}
 
 	output := Output{
@@ -89,7 +87,7 @@ func outputJSON(info *parser.ModuleInfo, archived []githubchecker.RepoStatus) {
 	fmt.Println(string(jsonData))
 }
 
-func outputText(info *parser.ModuleInfo, archived []githubchecker.RepoStatus) {
+func outputText(info *parser.ModuleInfo, archived []heartbeat.RepoStatus) {
 	// Count direct dependencies
 	directDeps := 0
 	for _, dep := range info.Requires {
@@ -112,24 +110,8 @@ func outputText(info *parser.ModuleInfo, archived []githubchecker.RepoStatus) {
 		fmt.Println("\nArchived GitHub Dependencies:")
 		for _, repo := range archived {
 			if repo.IsArchived {
-				fmt.Printf("  %s (github.com/%s/%s): ARCHIVED\n",
-					repo.ModulePath, repo.Owner, repo.Repo)
+				fmt.Printf("  %s \n", repo.ModulePath)
 			}
-		}
-	}
-
-	// Print dependencies not hosted on GitHub
-	var nonGithubDeps []string
-	for _, dep := range info.Requires {
-		if !dep.Indirect && !strings.HasPrefix(dep.Path, "github.com/") {
-			nonGithubDeps = append(nonGithubDeps, dep.Path)
-		}
-	}
-
-	if len(nonGithubDeps) > 0 {
-		fmt.Println("\nDependencies Not Hosted on GitHub:")
-		for _, dep := range nonGithubDeps {
-			fmt.Printf("  %s\n", dep)
 		}
 	}
 
@@ -138,7 +120,6 @@ func outputText(info *parser.ModuleInfo, archived []githubchecker.RepoStatus) {
 	fmt.Printf("- Total Dependencies: %d\n", len(info.Requires))
 	fmt.Printf("- Direct Dependencies: %d\n", directDeps)
 	fmt.Printf("- Unmaintained Dependencies: %d\n", archivedCount)
-	fmt.Printf("- Dependencies with unknown status: %d\n", len(nonGithubDeps))
 }
 
 func printUsage() {
