@@ -54,7 +54,7 @@ godeping -json /path/to/your/project
 
 ```json
 {
-  "module": "github.com/nurdsoft/nurd-commerce-core",
+  "module": "your/main/module",
   "goVersion": "1.24.2",
   "totalDependencies": 90,
   "directDependencies": 30,
