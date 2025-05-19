@@ -1,6 +1,8 @@
 # godeping
 
-A Go tool to check the health of your Go project dependencies.
+_Pronounced: "Go-dep-ping"_
+
+> A Go tool to check whether you Go project dependencies are maintained or not.
 
 ## Installation
 
