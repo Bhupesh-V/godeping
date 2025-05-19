@@ -16,6 +16,8 @@ Options:
 
 ## Example
 
+### Text (Default) Mode
+
 ```
 $ godeping -quiet /path/to/your/project
 Analyzing Go project at: /path/to/your/project
@@ -40,6 +42,45 @@ Summary:
 - Total Dependencies: 90
 - Direct Dependencies: 30
 - Unmaintained Dependencies: 5
+```
+
+### JSON Mode
+
+Use the `-json` flag to output the results in JSON format. JSON mode is quiet by default.
+
+```
+godeping -json /path/to/your/project
+```
+
+```json
+{
+  "module": "github.com/nurdsoft/nurd-commerce-core",
+  "goVersion": "1.24.2",
+  "totalDependencies": 90,
+  "directDependencies": 30,
+  "deadDirectDependencies": [
+    {
+      "module_path": "github.com/golang/mock",
+      "last_published": "2021-06-11T00:00:00Z"
+    },
+    {
+      "module_path": "github.com/avast/retry-go",
+      "last_published": "2020-10-13T00:00:00Z"
+    },
+    {
+      "module_path": "github.com/patrickmn/go-cache",
+      "last_published": "2017-07-22T00:00:00Z"
+    },
+    {
+      "module_path": "github.com/pkg/errors",
+      "last_published": "2020-01-14T00:00:00Z"
+    },
+    {
+      "module_path": "github.com/opentracing/opentracing-go",
+      "last_published": "2020-07-01T00:00:00Z"
+    }
+  ]
+}
 ```
 
 ## License
