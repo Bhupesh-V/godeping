@@ -1,6 +1,6 @@
 # godeping
 
-_Pronounced: "Go-dep-ping"_
+_Pronounced: "Go deping". Technically, "Go dep ping"_
 
 > **A Go tool to check whether you Go project dependencies are maintained or not.**
 
@@ -13,12 +13,12 @@ go install github.com/Bhupesh-V/godeping@latest
 ## Use-cases
 
 1. **Tech Debt, Refactoring & Cleanup**
-   - When inheriting an unfamiliar Go project, get a sense of technical debt in terms of unmaintained dependencies.
+   - When inheriting an unfamiliar Go project, get a sense of technical debt in terms of dependencies.
 2. **Security Audits & Compliance**
    - Flag deps that might not receive security patches anymore.
 3. **Open-Source Spirit**
    - Help (sponsor) maintainers to keep the unmaintained libraries alive.
-   - Fork the ones that cannont be helped. Take charge on giving back to the community.
+   - Fork the ones that cannont be helped. Take charge on giving back to the community 🏃🏼‍♂️.
 
 ## Usage
 
