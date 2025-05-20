@@ -18,7 +18,14 @@ go install github.com/Bhupesh-V/godeping@latest
    - Flag deps that might not receive security patches anymore.
 3. **Open-Source Spirit**
    - Help (sponsor) maintainers to keep the unmaintained libraries alive.
-   - Fork the ones that cannont be helped. Take charge on giving back to the community 🏃🏼‍♂️.
+   - Fork the ones that cannot be helped. Take charge on giving back to the community 🏃🏼‍♂️.
+
+## Judgement Criteria
+
+`godeping` relies on the Go Infrastructure to determine whether a dependency is archived or not. Namely `pkg.go.dev` which itself is powered by [`index.golang.org`](https://index.golang.org/).
+
+- As of today an API for [`pkg.go.dev` is still not available](https://github.com/golang/go/issues/36785).
+- `godeping` check's the last published date of the module. If it exceeds 2 years, it is considered archived. This makes the criteria a _close approximation_.
 
 ## Usage
 
