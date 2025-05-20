@@ -2,13 +2,23 @@
 
 _Pronounced: "Go-dep-ping"_
 
-> A Go tool to check whether you Go project dependencies are maintained or not.
+> **A Go tool to check whether you Go project dependencies are maintained or not.**
 
 ## Installation
 
 ```
 go install github.com/Bhupesh-V/godeping@latest
 ```
+
+## Use-cases
+
+1. **Tech Debt, Refactoring & Cleanup**
+   - When inheriting an unfamiliar Go project, get a sense of technical debt in terms of unmaintained dependencies.
+2. **Security Audits & Compliance**
+   - Flag deps that might not receive security patches anymore.
+3. **Open-Source Spirit**
+   - Help (sponsor) maintainers to keep the unmaintained libraries alive.
+   - Fork the ones that cannont be helped. Take charge on giving back to the community.
 
 ## Usage
 
@@ -62,7 +72,7 @@ Summary:
 
 ### JSON Mode
 
-Use the `-json` flag to output the results in JSON format. JSON mode is quiet by default.
+Use the `-json` flag to output the results in JSON format. JSON mode enables `-quiet` by default.
 
 ```
 godeping -json /path/to/your/project
@@ -119,4 +129,4 @@ done
 
 ## License
 
-GNU General Public License v3.0
+This project is licensed under the GNU General Public License v3.0 License - see the [LICENSE](LICENSE) file for details.

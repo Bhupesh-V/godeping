@@ -12,11 +12,29 @@ import (
 )
 
 func main() {
-	// Define flags
-	jsonOutput := flag.Bool("json", false, "Output in JSON format")
-	quiet := flag.Bool("quiet", false, "Suppress progress output")
 
-	// Parse flags
+	jsonOutput := flag.Bool("json", false, "Output results in JSON format (useful for scripting)")
+	quiet := flag.Bool("quiet", false, "Suppress non-essential output (e.g., progress indicators)")
+
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "godeping - Ping your Go project dependencies for aliveness (maintained) or not\n")
+		fmt.Fprintf(os.Stderr, "\nUsage:\n  %s [options] <path-to-go-project>\n\n", os.Args[0])
+		fmt.Fprintln(os.Stderr, `
+Examples:
+  Run normally (with live progress):
+	godeping /path/to/go/project
+
+  Run quietly (suppressing progress):
+	godeping -quiet /path/to/go/project
+
+  Run quietly with JSON output:
+	godeping -json
+
+Support:
+
+https://github.com/Bhupesh-V/godeping/issues`)
+	}
+
 	flag.Parse()
 
 	// When JSON output is enabled, quiet mode is automatically turned on
