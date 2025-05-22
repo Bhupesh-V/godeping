@@ -77,7 +77,7 @@ Support:
 
 	// Always check for archived GitHub dependencies
 	client := ping.NewClient()
-	archivedResults := client.CheckArchivedDependenciesWithProgress(
+	archivedResults := client.PingPackage(
 		moduleInfo.Requires,
 		progressCallback,
 	)

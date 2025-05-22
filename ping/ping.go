@@ -39,12 +39,8 @@ func NewClient() *Client {
 // ProgressCallback is a type for the progress callback function
 type ProgressCallback func(dependency string, status string)
 
-// CheckArchivedDependenciesWithProgress checks which dependencies appear to be archived
-// by checking their status on pkg.go.dev
-func (c *Client) CheckArchivedDependenciesWithProgress(
-	deps []parser.Dependency,
-	progress ProgressCallback,
-) []RepoStatus {
+// PingPackage checks which dependencies appear to be archived by checking their status on pkg.go.dev
+func (c *Client) PingPackage(deps []parser.Dependency, progress ProgressCallback) []RepoStatus {
 	// Filter out indirect dependencies
 	var directDeps []parser.Dependency
 	for _, dep := range deps {

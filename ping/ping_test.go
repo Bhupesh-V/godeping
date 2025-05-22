@@ -1,11 +1,16 @@
 package ping
 
 import (
+	"bytes"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
+	parser "github.com/Bhupesh-V/godeping/parsers/modfile"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -83,4 +88,206 @@ type roundTripperFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	return f(req)
+}
+
+// MockHTTPClient implements http.Client for testing
+type MockHTTPClient struct {
+	DoFunc func(req *http.Request) (*http.Response, error)
+}
+
+func (m *MockHTTPClient) RoundTrip(req *http.Request) (*http.Response, error) {
+	return m.DoFunc(req)
+}
+
+func TestCheckArchivedDependenciesWithProgress(t *testing.T) {
+	// Helper to create HTML with specific published date
+	createHTML := func(dateStr string) string {
+		return `<html><body><span data-test-id="UnitHeader-commitTime">` + dateStr + `</span></body></html>`
+	}
+
+	// Use a fixed date that's more than 2 years old to ensure it's always detected as archived
+	oldDate := time.Now().AddDate(-3, 0, 0).Format("Jan 2, 2006")
+	recentDate := time.Now().AddDate(0, -2, 0).Format("Jan 2, 2006")
+
+	tests := []struct {
+		name               string
+		dependencies       []parser.Dependency
+		mockResponses      map[string]*http.Response
+		expectedArchived   []string
+		expectedActive     []string
+		expectedErrors     []string
+		progressCalls      int
+		archiveReasonCheck map[string]string
+	}{
+		{
+			name: "Active dependencies",
+			dependencies: []parser.Dependency{
+				{Path: "github.com/active/repo1", Indirect: false},
+				{Path: "github.com/active/repo2", Indirect: false},
+			},
+			mockResponses: map[string]*http.Response{
+				"https://pkg.go.dev/github.com/active/repo1": {
+					StatusCode: 200,
+					Body:       io.NopCloser(bytes.NewBufferString(createHTML(recentDate))),
+				},
+				"https://pkg.go.dev/github.com/active/repo2": {
+					StatusCode: 200,
+					Body:       io.NopCloser(bytes.NewBufferString(createHTML(recentDate))),
+				},
+			},
+			expectedArchived: []string{},
+			expectedActive:   []string{"github.com/active/repo1", "github.com/active/repo2"},
+			expectedErrors:   []string{},
+			progressCalls:    2,
+		},
+		{
+			name: "Archived dependencies (old)",
+			dependencies: []parser.Dependency{
+				{Path: "github.com/old/repo1", Indirect: false},
+			},
+			mockResponses: map[string]*http.Response{
+				"https://pkg.go.dev/github.com/old/repo1": {
+					StatusCode: 200,
+					Body:       io.NopCloser(bytes.NewBufferString(createHTML(oldDate))),
+				},
+			},
+			expectedArchived:   []string{"github.com/old/repo1"},
+			expectedActive:     []string{},
+			expectedErrors:     []string{},
+			progressCalls:      1,
+			archiveReasonCheck: map[string]string{"github.com/old/repo1": "Not updated since"},
+		},
+		{
+			name: "Archived dependencies (404)",
+			dependencies: []parser.Dependency{
+				{Path: "github.com/notfound/repo", Indirect: false},
+			},
+			mockResponses: map[string]*http.Response{
+				"https://pkg.go.dev/github.com/notfound/repo": {
+					StatusCode: 404,
+					Body:       io.NopCloser(bytes.NewBufferString("")),
+				},
+			},
+			expectedArchived:   []string{"github.com/notfound/repo"},
+			expectedActive:     []string{},
+			expectedErrors:     []string{},
+			progressCalls:      1,
+			archiveReasonCheck: map[string]string{"github.com/notfound/repo": "404 from pkg.go.dev"},
+		},
+		{
+			name: "Mixed dependencies",
+			dependencies: []parser.Dependency{
+				{Path: "github.com/active/repo", Indirect: false},
+				{Path: "github.com/old/repo", Indirect: false},
+				{Path: "github.com/notfound/repo", Indirect: false},
+				{Path: "github.com/indirect/repo", Indirect: true}, // Should be ignored
+			},
+			mockResponses: map[string]*http.Response{
+				"https://pkg.go.dev/github.com/active/repo": {
+					StatusCode: 200,
+					Body:       io.NopCloser(bytes.NewBufferString(createHTML(recentDate))),
+				},
+				"https://pkg.go.dev/github.com/old/repo": {
+					StatusCode: 200,
+					Body:       io.NopCloser(bytes.NewBufferString(createHTML(oldDate))),
+				},
+				"https://pkg.go.dev/github.com/notfound/repo": {
+					StatusCode: 404,
+					Body:       io.NopCloser(bytes.NewBufferString("")),
+				},
+			},
+			expectedArchived: []string{"github.com/old/repo", "github.com/notfound/repo"},
+			expectedActive:   []string{"github.com/active/repo"},
+			expectedErrors:   []string{},
+			progressCalls:    3, // Should be 3 because indirect deps are filtered out
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Create a client with a mocked HTTP client
+			client := NewClient()
+
+			// Create a proper mock of http.Client with a mocked Transport
+			mockTransport := &MockHTTPClient{
+				DoFunc: func(req *http.Request) (*http.Response, error) {
+					url := req.URL.String()
+					resp, ok := tc.mockResponses[url]
+					if !ok {
+						t.Fatalf("Unexpected request to %s", url)
+					}
+					return resp, nil
+				},
+			}
+			client.httpClient.Transport = mockTransport
+
+			// Track progress calls with mutex for thread safety
+			var mu sync.Mutex
+			progressCalls := 0
+			progressMessages := make(map[string]string)
+
+			// Run the function under test
+			results := client.PingPackage(tc.dependencies, func(dependency string, status string) {
+				mu.Lock()
+				defer mu.Unlock()
+				progressCalls++
+				progressMessages[dependency] = status
+			})
+
+			// Verify the number of progress calls
+			if progressCalls != tc.progressCalls {
+				t.Errorf("Expected %d progress calls, got %d", tc.progressCalls, progressCalls)
+			}
+
+			// Check archived dependencies
+			archivedDeps := []string{}
+			activeDeps := []string{}
+			errorDeps := []string{}
+
+			for _, result := range results {
+				if result.Error != "" {
+					errorDeps = append(errorDeps, result.ModulePath)
+				} else if result.IsArchived {
+					archivedDeps = append(archivedDeps, result.ModulePath)
+
+					// Check reason if specified
+					if tc.archiveReasonCheck != nil {
+						expectedReason, ok := tc.archiveReasonCheck[result.ModulePath]
+						if ok && !strings.Contains(result.Reason, expectedReason) {
+							t.Errorf("For %s expected reason to contain %q, got %q",
+								result.ModulePath, expectedReason, result.Reason)
+						}
+					}
+				} else {
+					activeDeps = append(activeDeps, result.ModulePath)
+				}
+			}
+
+			// Helper function to check slices
+			checkSlices := func(name string, got, expected []string) {
+				if len(got) != len(expected) {
+					t.Errorf("Expected %d %s, got %d", len(expected), name, len(got))
+					t.Errorf("Expected: %v", expected)
+					t.Errorf("Got: %v", got)
+					return
+				}
+
+				// Convert to maps for easier comparison
+				expectedMap := make(map[string]bool)
+				for _, dep := range expected {
+					expectedMap[dep] = true
+				}
+
+				for _, dep := range got {
+					if !expectedMap[dep] {
+						t.Errorf("Unexpected %s: %s", name, dep)
+					}
+				}
+			}
+
+			checkSlices("archived dependencies", archivedDeps, tc.expectedArchived)
+			checkSlices("active dependencies", activeDeps, tc.expectedActive)
+			checkSlices("error dependencies", errorDeps, tc.expectedErrors)
+		})
+	}
 }
