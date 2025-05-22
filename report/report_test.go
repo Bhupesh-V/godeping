@@ -159,7 +159,6 @@ func TestOutputText(t *testing.T) {
 	io.Copy(&buf, r)
 	output := buf.String()
 
-	// Print output for debugging
 	t.Logf("Text Output: %s", output)
 
 	// Verify the text output contains expected information
@@ -190,8 +189,6 @@ func TestOutputText(t *testing.T) {
 	// Check that the active repo is not flagged as archived in the output
 	for _, status := range repoResults {
 		if !status.IsArchived {
-			// Make sure this active repo is not paired with an "archived" message
-			// activeRepoMentioned := strings.Contains(output, status.ModulePath)
 			activeRepoArchivedMentioned := strings.Contains(
 				strings.ToLower(output),
 				strings.ToLower(status.ModulePath+" is archived"))
@@ -199,11 +196,6 @@ func TestOutputText(t *testing.T) {
 			if activeRepoArchivedMentioned {
 				t.Errorf("Active repo %s should not be indicated as archived", status.ModulePath)
 			}
-
-			// Optionally, you can check if active repos are mentioned at all, if expected
-			// if !activeRepoMentioned {
-			//    t.Errorf("Expected active repo %s to be mentioned", status.ModulePath)
-			// }
 		}
 	}
 }
