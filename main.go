@@ -1,14 +1,13 @@
 package main
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
-	"strings"
 
 	parser "github.com/Bhupesh-V/godeping/parsers/modfile"
-	heartbeat "github.com/Bhupesh-V/godeping/ping"
+	ping "github.com/Bhupesh-V/godeping/ping"
+	"github.com/Bhupesh-V/godeping/report"
 )
 
 func main() {
@@ -41,7 +40,6 @@ Support:
 	flag.Parse()
 
 	// When JSON output is enabled, quiet mode is automatically turned on
-	// unless explicitly overridden
 	if *jsonOutput {
 		*quiet = true
 	}
@@ -64,7 +62,7 @@ Support:
 	// Parse the go.mod file
 	moduleInfo, err := parser.ParseGoMod(projectPath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Unable to parse go.mod file: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -74,113 +72,22 @@ Support:
 		fmt.Printf("Go Version: %s\n", moduleInfo.GoVersion)
 	}
 
-	// Define a progress callback function
-	progressCallback := func(dep string, status string) {
-		if !*quiet {
-			fmt.Printf("%-50s\n", dep)
-			if status != "" {
-				fmt.Printf(strings.Repeat(" ", 50))
-				fmt.Printf("[%s]\n", status)
-			}
-		}
-	}
+	// Get the progress callback
+	progressCallback := report.ProgressCallback(quiet)
 
 	// Always check for archived GitHub dependencies
-	client := heartbeat.NewClient()
+	client := ping.NewClient()
 	archivedResults := client.CheckArchivedDependenciesWithProgress(
 		moduleInfo.Requires,
 		progressCallback,
 	)
 
-	// Output the results
+	// Output the results using the appropriate format
 	if *jsonOutput {
-		outputJSON(moduleInfo, archivedResults)
+		report.OutputJSON(moduleInfo, archivedResults)
 	} else {
-		outputText(moduleInfo, archivedResults)
+		report.OutputText(moduleInfo, archivedResults)
 	}
-}
-
-func outputJSON(info *parser.ModuleInfo, repoStatus []heartbeat.RepoStatus) {
-	// Count direct dependencies
-	directDeps := 0
-
-	// Get all direct dependencies
-	var directDependencies []parser.Dependency
-	for _, dep := range info.Requires {
-		if !dep.Indirect {
-			directDeps++
-			directDependencies = append(directDependencies, dep)
-		}
-	}
-
-	var archived []heartbeat.RepoStatus
-	// Count archived dependencies
-	for _, repo := range repoStatus {
-		if repo.IsArchived {
-			archived = append(archived, repo)
-		}
-	}
-
-	type Output struct {
-		Module               string                 `json:"module"`
-		GoVersion            string                 `json:"goVersion"`
-		TotalDependencies    int                    `json:"totalDependencies"`
-		DirectDependencies   int                    `json:"directDependencies"`
-		ArchivedDependencies []heartbeat.RepoStatus `json:"deadDirectDependencies"`
-	}
-
-	output := Output{
-		Module:               info.ModuleName,
-		GoVersion:            info.GoVersion,
-		TotalDependencies:    len(info.Requires),
-		DirectDependencies:   directDeps,
-		ArchivedDependencies: archived,
-	}
-
-	jsonData, err := json.MarshalIndent(output, "", "  ")
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error generating JSON: %v\n", err)
-		os.Exit(1)
-	}
-	fmt.Println(string(jsonData))
-}
-
-func outputText(info *parser.ModuleInfo, archived []heartbeat.RepoStatus) {
-	// Count direct dependencies
-	directDeps := 0
-	for _, dep := range info.Requires {
-		if !dep.Indirect {
-			directDeps++
-		}
-	}
-
-	// Print summary of archived repositories
-	archivedCount := 0
-	for _, repo := range archived {
-		if repo.IsArchived {
-			archivedCount++
-		}
-	}
-
-	// Print archived GitHub dependencies if any
-	if archivedCount > 0 {
-		fmt.Println("\nArchived (Dead) Direct Dependencies:")
-		for _, repo := range archived {
-			if repo.IsArchived {
-				fmt.Printf("%s\n", repo.ModulePath)
-				if !repo.LastPublished.IsZero() {
-					fmt.Printf(strings.Repeat(" ", 10))
-					fmt.Printf("Last Published: %s\n", repo.LastPublished.Format("Jan 2, 2006"))
-				}
-			}
-		}
-	}
-
-	// Print summary
-	fmt.Println("\nSummary:")
-	fmt.Printf("- Total Dependencies: %d\n", len(info.Requires))
-	fmt.Printf("- Direct Dependencies: %d\n", directDeps)
-	fmt.Printf("- Archived/Dead Dependencies: %d\n", archivedCount)
 }
 
 func printUsage() {
