@@ -17,22 +17,25 @@ func main() {
 	quiet := flag.Bool("quiet", false, "Suppress non-essential output (e.g., progress indicators)")
 
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "godeping - Ping your Go project dependencies for aliveness (maintained) or not\n")
-		fmt.Fprintf(os.Stderr, "\nUsage:\n  %s [options] <path-to-go-project>\n\n", os.Args[0])
-		fmt.Fprintln(os.Stderr, `
+		fmt.Fprintf(os.Stdout, "godeping - Ping your Go project dependencies for aliveness (maintained) or not\n")
+		fmt.Fprintf(os.Stdout, "\nUsage:\n  %s [options] <path-to-go-project>\n\n", os.Args[0])
+		fmt.Fprintln(os.Stdout, `
 Examples:
-  Run normally (with live progress):
-	godeping /path/to/go/project
+========
+Assuming you are in the root directory of your Go project:
 
-  Run quietly (suppressing progress):
-	godeping -quiet /path/to/go/project
+	Run normally (with live progress):
+		godeping .
 
-  Run quietly with JSON output:
-	godeping -json
+	Run quietly (suppressing progress):
+		godeping -quiet .
+
+	Run quietly with JSON output:
+		godeping -json .
 
 Support:
-
-https://github.com/Bhupesh-V/godeping/issues`)
+=======
+	https://github.com/Bhupesh-V/godeping/issues`)
 	}
 
 	flag.Parse()
@@ -74,7 +77,11 @@ https://github.com/Bhupesh-V/godeping/issues`)
 	// Define a progress callback function
 	progressCallback := func(dep string, status string) {
 		if !*quiet {
-			fmt.Printf("Analyzing: %-50s [%s]\n", dep, status)
+			fmt.Printf("%-50s\n", dep)
+			if status != "" {
+				fmt.Printf(strings.Repeat(" ", 50))
+				fmt.Printf("[%s]\n", status)
+			}
 		}
 	}
 
@@ -146,7 +153,6 @@ func outputText(info *parser.ModuleInfo, archived []heartbeat.RepoStatus) {
 			directDeps++
 		}
 	}
-	fmt.Printf("Direct Dependencies: %d\n", directDeps)
 
 	// Print summary of archived repositories
 	archivedCount := 0
@@ -174,7 +180,7 @@ func outputText(info *parser.ModuleInfo, archived []heartbeat.RepoStatus) {
 	fmt.Println("\nSummary:")
 	fmt.Printf("- Total Dependencies: %d\n", len(info.Requires))
 	fmt.Printf("- Direct Dependencies: %d\n", directDeps)
-	fmt.Printf("- Unmaintained Dependencies: %d\n", archivedCount)
+	fmt.Printf("- Archived/Dead Dependencies: %d\n", archivedCount)
 }
 
 func printUsage() {

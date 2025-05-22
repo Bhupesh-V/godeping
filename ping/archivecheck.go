@@ -1,4 +1,4 @@
-package heartbeat
+package ping
 
 import (
 	"fmt"
@@ -88,12 +88,12 @@ func (c *Client) CheckArchivedDependenciesWithProgress(
 				if !publishDate.IsZero() && time.Since(publishDate) > 2*365*24*time.Hour {
 					status.IsArchived = true
 					status.Reason = fmt.Sprintf("Not updated since %s", publishDate.Format("Jan 2, 2006"))
-					progress(dep.Path, "ARCHIVED (Last published: "+publishDate.Format("Jan 2, 2006")+")")
+					progress(dep.Path, "Archived (Last published: "+publishDate.Format("Jan 2, 2006")+")")
 				} else if statusCode == http.StatusNotFound {
 					// Secondary check: Is the package not found on pkg.go.dev?
 					status.IsArchived = true
 					status.Reason = "404 from pkg.go.dev"
-					progress(dep.Path, "ARCHIVED (Not found on pkg.go.dev)")
+					progress(dep.Path, "Archived (Not found on pkg.go.dev)")
 				} else {
 					// Recent publish date and status code is OK
 					progress(dep.Path, "Active (Last published: "+publishDate.Format("Jan 2, 2006")+")")
@@ -174,28 +174,6 @@ func extractPublishDate(html string) time.Time {
 
 	for _, format := range formats {
 		date, err := time.Parse(format, dateStr)
-		if err == nil {
-			return date
-		}
-	}
-
-	// If parsing fails with standard formats, try a more flexible approach
-	// Extract month, day, year
-	parts := strings.Split(dateStr, " ")
-	if len(parts) >= 3 {
-		// Try to build a standardized date string
-		month := parts[0]
-		day := strings.TrimSuffix(parts[1], ",")
-		year := parts[2]
-
-		// Ensure day is 2 digits
-		if len(day) == 1 {
-			day = "0" + day
-		}
-
-		// Try parsing again
-		standardized := fmt.Sprintf("%s %s, %s", month, day, year)
-		date, err := time.Parse("Jan 02, 2006", standardized)
 		if err == nil {
 			return date
 		}
