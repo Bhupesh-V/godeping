@@ -26,3 +26,5 @@ go.work.sum
 
 .vscode/
 *.json
+coverage.out
+*html

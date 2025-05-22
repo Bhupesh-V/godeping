@@ -4,6 +4,8 @@ _Pronounced: "Go deping". Technically, "Go dep ping"_
 
 > **A Go tool to check whether you Go project dependencies are maintained or not.**
 
+[![Go Build & Test](https://github.com/Bhupesh-V/godeping/actions/workflows/main.yml/badge.svg?branch=main)](https://github.com/Bhupesh-V/godeping/actions/workflows/main.yml)
+
 ## Installation
 
 ```

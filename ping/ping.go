@@ -1,15 +1,14 @@
-package heartbeat
+package ping
 
 import (
 	"fmt"
 	"io"
 	"net/http"
-	"regexp"
-	"strings"
 	"sync"
 	"time"
 
 	parser "github.com/Bhupesh-V/godeping/parsers/modfile"
+	"github.com/Bhupesh-V/godeping/parsers/pkginfo"
 )
 
 // RepoStatus contains information about a repository's status
@@ -40,12 +39,8 @@ func NewClient() *Client {
 // ProgressCallback is a type for the progress callback function
 type ProgressCallback func(dependency string, status string)
 
-// CheckArchivedDependenciesWithProgress checks which dependencies appear to be archived
-// by checking their status on pkg.go.dev
-func (c *Client) CheckArchivedDependenciesWithProgress(
-	deps []parser.Dependency,
-	progress ProgressCallback,
-) []RepoStatus {
+// PingPackage checks which dependencies appear to be archived by checking their status on pkg.go.dev
+func (c *Client) PingPackage(deps []parser.Dependency, progress ProgressCallback) []RepoStatus {
 	// Filter out indirect dependencies
 	var directDeps []parser.Dependency
 	for _, dep := range deps {
@@ -88,12 +83,12 @@ func (c *Client) CheckArchivedDependenciesWithProgress(
 				if !publishDate.IsZero() && time.Since(publishDate) > 2*365*24*time.Hour {
 					status.IsArchived = true
 					status.Reason = fmt.Sprintf("Not updated since %s", publishDate.Format("Jan 2, 2006"))
-					progress(dep.Path, "ARCHIVED (Last published: "+publishDate.Format("Jan 2, 2006")+")")
+					progress(dep.Path, "Archived (Last published: "+publishDate.Format("Jan 2, 2006")+")")
 				} else if statusCode == http.StatusNotFound {
 					// Secondary check: Is the package not found on pkg.go.dev?
 					status.IsArchived = true
 					status.Reason = "404 from pkg.go.dev"
-					progress(dep.Path, "ARCHIVED (Not found on pkg.go.dev)")
+					progress(dep.Path, "Archived (Not found on pkg.go.dev)")
 				} else {
 					// Recent publish date and status code is OK
 					progress(dep.Path, "Active (Last published: "+publishDate.Format("Jan 2, 2006")+")")
@@ -144,62 +139,7 @@ func (c *Client) checkPackageStatus(pkgPath string) (statusCode int, repoURL str
 	}
 
 	htmlContent := string(body)
-	publishDate = extractPublishDate(htmlContent)
+	publishDate = pkginfo.ExtractPublishDate(htmlContent)
 
 	return statusCode, repoURL, publishDate, nil
-}
-
-// extractPublishDate extracts the last published date from pkg.go.dev HTML
-func extractPublishDate(html string) time.Time {
-	// Look for the published date in the span with data-test-id="UnitHeader-commitTime"
-	datePattern := regexp.MustCompile(`<span[^>]*data-test-id="UnitHeader-commitTime"[^>]*>([^<]+)</span>`)
-	matches := datePattern.FindStringSubmatch(html)
-
-	if len(matches) < 2 {
-		return time.Time{} // Return zero time if not found
-	}
-
-	// Parse the date string (format: "Jan 23, 2024")
-	dateStr := strings.TrimSpace(matches[1])
-	dateStr = strings.TrimPrefix(dateStr, "Published:")
-	dateStr = strings.TrimSpace(dateStr)
-
-	// Try different formats as the exact format might vary
-	formats := []string{
-		"Jan 2, 2006",
-		"Jan 02, 2006",
-		"January 2, 2006",
-		"January 02, 2006",
-	}
-
-	for _, format := range formats {
-		date, err := time.Parse(format, dateStr)
-		if err == nil {
-			return date
-		}
-	}
-
-	// If parsing fails with standard formats, try a more flexible approach
-	// Extract month, day, year
-	parts := strings.Split(dateStr, " ")
-	if len(parts) >= 3 {
-		// Try to build a standardized date string
-		month := parts[0]
-		day := strings.TrimSuffix(parts[1], ",")
-		year := parts[2]
-
-		// Ensure day is 2 digits
-		if len(day) == 1 {
-			day = "0" + day
-		}
-
-		// Try parsing again
-		standardized := fmt.Sprintf("%s %s, %s", month, day, year)
-		date, err := time.Parse("Jan 02, 2006", standardized)
-		if err == nil {
-			return date
-		}
-	}
-
-	return time.Time{} // Return zero time if parsing fails
 }
