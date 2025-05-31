@@ -27,7 +27,7 @@ go install github.com/Bhupesh-V/godeping@latest
 `godeping` relies on the Go Infrastructure to determine whether a dependency is archived or not. Namely `pkg.go.dev` which itself is powered by [`index.golang.org`](https://index.golang.org/).
 
 - As of today an API for [`pkg.go.dev` is still not available](https://github.com/golang/go/issues/36785).
-- `godeping` check's the last published date of the module. If it exceeds 2 years, it is considered archived. This makes the criteria a _close approximation_.
+- By default, `godeping` considers a module unmaintained if it hasn't been updated in 2 years. This threshold can be customized using the `-since` flag.
 
 ## Usage
 
@@ -47,7 +47,18 @@ Options:
         Output in JSON format
   -quiet
         Suppress progress output
+  -since string
+        Consider dependencies as unmaintained if not updated since this duration (e.g. 1y, 6m, 2y3m) (default "2y")
 ```
+
+### Duration Format for -since
+
+The `-since` flag accepts durations in several formats:
+
+- Years: `2y` (2 years)
+- Months: `6m` (6 months)
+- Years and months: `1y6m` (1 year and 6 months)
+- Standard Go duration format: `720h` (30 days)
 
 ## Example
 
@@ -78,6 +89,14 @@ Summary:
 - Direct Dependencies: 30
 - Unmaintained Dependencies: 5
 ```
+
+### Using Custom Duration
+
+```
+$ godeping -quiet -since 6m /path/to/your/project
+```
+
+This checks for dependencies that haven't been updated in the last 6 months.
 
 ### JSON Mode
 

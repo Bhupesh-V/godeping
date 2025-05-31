@@ -3,6 +3,7 @@ module github.com/Bhupesh-V/godeping
 go 1.23.4
 
 require (
+	github.com/sosodev/duration v1.3.1
 	github.com/stretchr/testify v1.10.0
 	golang.org/x/mod v0.24.0
 )
