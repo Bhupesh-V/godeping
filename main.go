@@ -4,16 +4,20 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
+	"time"
 
 	parser "github.com/Bhupesh-V/godeping/parsers/modfile"
 	ping "github.com/Bhupesh-V/godeping/ping"
 	"github.com/Bhupesh-V/godeping/report"
+	iso8601duration "github.com/sosodev/duration"
 )
 
 func main() {
 
 	jsonOutput := flag.Bool("json", false, "Output results in JSON format (useful for scripting)")
 	quiet := flag.Bool("quiet", false, "Suppress non-essential output (e.g., progress indicators)")
+	sinceFlag := flag.String("since", "2y", "Consider dependencies as unmaintained if not updated since this duration (e.g. 1y, 6m, 2y3m)")
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stdout, "godeping - Ping your Go project dependencies for aliveness (maintained) or not\n")
@@ -32,6 +36,12 @@ Assuming you are in the root directory of your Go project:
 	Run quietly with JSON output:
 		godeping -json .
 
+	Check dependencies not updated in 6 months:
+		godeping -since 6m .
+
+	Check dependencies not updated in 1 year and 3 months:
+		godeping -since 1y3m .
+
 Support:
 =======
 	https://github.com/Bhupesh-V/godeping/issues`)
@@ -49,6 +59,13 @@ Support:
 	if len(args) < 1 {
 		fmt.Fprintf(os.Stderr, "Error: Path to Go project is required\n\n")
 		printUsage()
+		os.Exit(1)
+	}
+
+	// Parse the duration from the since flag
+	duration, err := parseDuration(*sinceFlag)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Invalid duration format for -since flag: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -77,6 +94,7 @@ Support:
 
 	// Always check for archived GitHub dependencies
 	client := ping.NewClient()
+	client.SetUnmaintainedDuration(duration)
 	archivedResults := client.PingPackage(
 		moduleInfo.Requires,
 		progressCallback,
@@ -88,6 +106,23 @@ Support:
 	} else {
 		report.OutputText(moduleInfo, archivedResults)
 	}
+}
+
+// parseDuration parses a duration string like "1y2m" into a time.Duration
+func parseDuration(s string) (time.Duration, error) {
+	// append Prefix "P" to the string to make it ISO 8601 compliant
+	if s == "" {
+		return 0, fmt.Errorf("duration cannot be empty")
+	}
+
+	s = strings.ToUpper("P" + s)
+
+	d, err := iso8601duration.Parse(s)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse duration: %w", err)
+	}
+
+	return d.ToTimeDuration(), nil
 }
 
 func printUsage() {

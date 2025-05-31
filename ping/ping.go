@@ -25,15 +25,21 @@ type RepoStatus struct {
 
 // Client is an HTTP client for checking module status
 type Client struct {
-	httpClient *http.Client
-	token      string // Kept for backward compatibility
+	httpClient           *http.Client
+	unmaintainedDuration time.Duration // Duration after which a module is considered unmaintained
 }
 
 // NewClient creates a new client
 func NewClient() *Client {
 	return &Client{
-		httpClient: &http.Client{Timeout: 10 * time.Minute},
+		httpClient:           &http.Client{Timeout: 10 * time.Minute},
+		unmaintainedDuration: 2 * 365 * 24 * time.Hour, // Default: 2 years
 	}
+}
+
+// SetUnmaintainedDuration sets the duration threshold for considering a dependency unmaintained
+func (c *Client) SetUnmaintainedDuration(d time.Duration) {
+	c.unmaintainedDuration = d
 }
 
 // ProgressCallback is a type for the progress callback function
@@ -79,8 +85,8 @@ func (c *Client) PingPackage(deps []parser.Dependency, progress ProgressCallback
 				status.Error = err.Error()
 				progress(dep.Path, "Error: "+err.Error())
 			} else {
-				// Primary check: Is the published date older than 2 year?
-				if !publishDate.IsZero() && time.Since(publishDate) > 2*365*24*time.Hour {
+				// Primary check: Is the published date older than the configured duration?
+				if !publishDate.IsZero() && time.Since(publishDate) > c.unmaintainedDuration {
 					status.IsArchived = true
 					status.Reason = fmt.Sprintf("Not updated since %s", publishDate.Format("Jan 2, 2006"))
 					progress(dep.Path, "Archived (Last published: "+publishDate.Format("Jan 2, 2006")+")")
