@@ -109,15 +109,19 @@ func TestCheckArchivedDependenciesWithProgress(t *testing.T) {
 	oldDate := time.Now().AddDate(-3, 0, 0).Format("Jan 2, 2006")
 	recentDate := time.Now().AddDate(0, -2, 0).Format("Jan 2, 2006")
 
+	// Date that's 8 months old - will be archived with 6-month threshold but active with default 2-year threshold
+	eightMonthsOldDate := time.Now().AddDate(0, -8, 0).Format("Jan 2, 2006")
+
 	tests := []struct {
-		name               string
-		dependencies       []parser.Dependency
-		mockResponses      map[string]*http.Response
-		expectedArchived   []string
-		expectedActive     []string
-		expectedErrors     []string
-		progressCalls      int
-		archiveReasonCheck map[string]string
+		name                 string
+		dependencies         []parser.Dependency
+		mockResponses        map[string]*http.Response
+		expectedArchived     []string
+		expectedActive       []string
+		expectedErrors       []string
+		progressCalls        int
+		archiveReasonCheck   map[string]string
+		unmaintainedDuration time.Duration // New field for custom duration tests
 	}{
 		{
 			name: "Active dependencies",
@@ -201,12 +205,68 @@ func TestCheckArchivedDependenciesWithProgress(t *testing.T) {
 			expectedErrors:   []string{},
 			progressCalls:    3, // Should be 3 because indirect deps are filtered out
 		},
+		{
+			name: "Custom duration - 6 months threshold",
+			dependencies: []parser.Dependency{
+				{Path: "github.com/recent/repo", Indirect: false},   // 2 months old
+				{Path: "github.com/moderate/repo", Indirect: false}, // 8 months old - should be archived
+			},
+			mockResponses: map[string]*http.Response{
+				"https://pkg.go.dev/github.com/recent/repo": {
+					StatusCode: 200,
+					Body:       io.NopCloser(bytes.NewBufferString(createHTML(recentDate))),
+				},
+				"https://pkg.go.dev/github.com/moderate/repo": {
+					StatusCode: 200,
+					Body:       io.NopCloser(bytes.NewBufferString(createHTML(eightMonthsOldDate))),
+				},
+			},
+			expectedArchived:     []string{"github.com/moderate/repo"},
+			expectedActive:       []string{"github.com/recent/repo"},
+			expectedErrors:       []string{},
+			progressCalls:        2,
+			unmaintainedDuration: 6 * 30 * 24 * time.Hour, // 6 months
+			archiveReasonCheck:   map[string]string{"github.com/moderate/repo": "Not updated since"},
+		},
+		{
+			name: "Custom duration - 1 year threshold",
+			dependencies: []parser.Dependency{
+				{Path: "github.com/recent/repo", Indirect: false},   // 2 months old
+				{Path: "github.com/moderate/repo", Indirect: false}, // 8 months old - should be active with 1 year threshold
+				{Path: "github.com/old/repo", Indirect: false},      // 3 years old - should be archived
+			},
+			mockResponses: map[string]*http.Response{
+				"https://pkg.go.dev/github.com/recent/repo": {
+					StatusCode: 200,
+					Body:       io.NopCloser(bytes.NewBufferString(createHTML(recentDate))),
+				},
+				"https://pkg.go.dev/github.com/moderate/repo": {
+					StatusCode: 200,
+					Body:       io.NopCloser(bytes.NewBufferString(createHTML(eightMonthsOldDate))),
+				},
+				"https://pkg.go.dev/github.com/old/repo": {
+					StatusCode: 200,
+					Body:       io.NopCloser(bytes.NewBufferString(createHTML(oldDate))),
+				},
+			},
+			expectedArchived:     []string{"github.com/old/repo"},
+			expectedActive:       []string{"github.com/recent/repo", "github.com/moderate/repo"},
+			expectedErrors:       []string{},
+			progressCalls:        3,
+			unmaintainedDuration: 365 * 24 * time.Hour, // 1 year
+			archiveReasonCheck:   map[string]string{"github.com/old/repo": "Not updated since"},
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Create a client with a mocked HTTP client
 			client := NewClient()
+
+			// Set custom unmaintained duration if specified
+			if tc.unmaintainedDuration > 0 {
+				client.SetUnmaintainedDuration(tc.unmaintainedDuration)
+			}
 
 			// Create a proper mock of http.Client with a mocked Transport
 			mockTransport := &MockHTTPClient{

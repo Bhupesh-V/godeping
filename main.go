@@ -4,13 +4,11 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"strings"
-	"time"
 
 	parser "github.com/Bhupesh-V/godeping/parsers/modfile"
 	ping "github.com/Bhupesh-V/godeping/ping"
 	"github.com/Bhupesh-V/godeping/report"
-	iso8601duration "github.com/sosodev/duration"
+	"github.com/Bhupesh-V/godeping/utils"
 )
 
 func main() {
@@ -63,7 +61,7 @@ Support:
 	}
 
 	// Parse the duration from the since flag
-	duration, err := parseDuration(*sinceFlag)
+	duration, err := utils.GetTimeDurationFromRelativeDate(*sinceFlag)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Invalid duration format for -since flag: %v\n", err)
 		os.Exit(1)
@@ -106,23 +104,6 @@ Support:
 	} else {
 		report.OutputText(moduleInfo, archivedResults)
 	}
-}
-
-// parseDuration parses a duration string like "1y2m" into a time.Duration
-func parseDuration(s string) (time.Duration, error) {
-	// append Prefix "P" to the string to make it ISO 8601 compliant
-	if s == "" {
-		return 0, fmt.Errorf("duration cannot be empty")
-	}
-
-	s = strings.ToUpper("P" + s)
-
-	d, err := iso8601duration.Parse(s)
-	if err != nil {
-		return 0, fmt.Errorf("failed to parse duration: %w", err)
-	}
-
-	return d.ToTimeDuration(), nil
 }
 
 func printUsage() {
