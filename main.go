@@ -16,35 +16,7 @@ func main() {
 	jsonOutput := flag.Bool("json", false, "Output results in JSON format (useful for scripting)")
 	quiet := flag.Bool("quiet", false, "Suppress non-essential output (e.g., progress indicators)")
 	sinceFlag := flag.String("since", "2y", "Consider dependencies as unmaintained if not updated since this duration (e.g. 1y, 6m, 2y3m)")
-
-	flag.Usage = func() {
-		fmt.Fprintf(os.Stdout, "godeping - Ping your Go project dependencies for aliveness (maintained) or not\n")
-		fmt.Fprintf(os.Stdout, "\nUsage:\n  %s [options] <path-to-go-project>\n\n", os.Args[0])
-		fmt.Fprintln(os.Stdout, `
-Examples:
-========
-Assuming you are in the root directory of your Go project:
-
-	Run normally (with live progress):
-		godeping .
-
-	Run quietly (suppressing progress):
-		godeping -quiet .
-
-	Run quietly with JSON output:
-		godeping -json .
-
-	Check dependencies not updated in 6 months:
-		godeping -since 6m .
-
-	Check dependencies not updated in 1 year and 3 months:
-		godeping -since 1y3m .
-
-Support:
-=======
-	https://github.com/Bhupesh-V/godeping/issues`)
-	}
-
+	flag.Usage = utils.GetUsageText()
 	flag.Parse()
 
 	// When JSON output is enabled, quiet mode is automatically turned on
@@ -87,15 +59,12 @@ Support:
 		fmt.Printf("Go Version: %s\n", moduleInfo.GoVersion)
 	}
 
-	// Get the progress callback
-	progressCallback := report.ProgressCallback(quiet)
-
 	// Always check for archived GitHub dependencies
 	client := ping.NewClient()
 	client.SetUnmaintainedDuration(duration)
+	client.SetProgressCallback(utils.ProgressCallback(quiet))
 	archivedResults := client.PingPackage(
 		moduleInfo.Requires,
-		progressCallback,
 	)
 
 	// Output the results using the appropriate format

@@ -32,14 +32,6 @@ func setupRepoStatusResults() []ping.RepoStatus {
 	}
 }
 
-// setupArchivedResults creates test archived results - keeping for backward compatibility
-func setupArchivedResults() map[string]bool {
-	return map[string]bool{
-		"github.com/active/repo":   false, // not archived
-		"github.com/archived/repo": true,  // archived
-	}
-}
-
 func TestOutputJSON(t *testing.T) {
 	// Redirect stdout to capture output
 	old := os.Stdout
@@ -197,63 +189,5 @@ func TestOutputText(t *testing.T) {
 				t.Errorf("Active repo %s should not be indicated as archived", status.ModulePath)
 			}
 		}
-	}
-}
-
-func TestProgressCallback(t *testing.T) {
-	// Test when quiet is true
-	quietFlag := true
-	callback := ProgressCallback(&quietFlag)
-
-	// If the implementation returns a non-nil callback even when quiet is true,
-	// we need to adjust our test to match the actual behavior
-	if callback != nil {
-		// Call the callback to verify it doesn't actually output anything
-		old := os.Stdout
-		r, w, _ := os.Pipe()
-		os.Stdout = w
-
-		callback("This should not be printed", "Quiet mode")
-
-		w.Close()
-		os.Stdout = old
-
-		var buf bytes.Buffer
-		io.Copy(&buf, r)
-		output := buf.String()
-
-		if output != "" {
-			t.Errorf("Expected no output in quiet mode, but got: %s", output)
-		}
-	}
-
-	// Test when quiet is false
-	// Redirect stdout to capture output
-	old := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
-
-	quietFlag = false
-	callback = ProgressCallback(&quietFlag)
-
-	// We should always have a callback when quiet is false
-	if callback == nil {
-		t.Error("Expected non-nil callback when quiet is false")
-	} else {
-		// Call the callback with a sample message
-		callback("Testing progress", "In progress")
-	}
-
-	// Restore stdout
-	w.Close()
-	os.Stdout = old
-
-	// Read the captured output
-	var buf bytes.Buffer
-	io.Copy(&buf, r)
-	output := buf.String()
-
-	if !strings.Contains(output, "Testing progress") {
-		t.Errorf("Progress callback didn't output the expected message")
 	}
 }

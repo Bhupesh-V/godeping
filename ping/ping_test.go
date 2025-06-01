@@ -286,13 +286,16 @@ func TestCheckArchivedDependenciesWithProgress(t *testing.T) {
 			progressCalls := 0
 			progressMessages := make(map[string]string)
 
-			// Run the function under test
-			results := client.PingPackage(tc.dependencies, func(dependency string, status string) {
+			// Set the progress callback using the new method
+			client.SetProgressCallback(func(dependency string, status string) {
 				mu.Lock()
 				defer mu.Unlock()
 				progressCalls++
 				progressMessages[dependency] = status
 			})
+
+			// Run the function under test
+			results := client.PingPackage(tc.dependencies)
 
 			// Verify the number of progress calls
 			if progressCalls != tc.progressCalls {

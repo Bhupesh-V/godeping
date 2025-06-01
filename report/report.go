@@ -77,7 +77,7 @@ func OutputText(info *parser.ModuleInfo, archived []ping.RepoStatus) {
 			if repo.IsArchived {
 				fmt.Printf("%s\n", repo.ModulePath)
 				if !repo.LastPublished.IsZero() {
-					fmt.Printf(strings.Repeat(" ", 10))
+					fmt.Print(strings.Repeat(" ", 10))
 					fmt.Printf("Last Published: %s\n", repo.LastPublished.Format("Jan 2, 2006"))
 				}
 			}
@@ -89,17 +89,4 @@ func OutputText(info *parser.ModuleInfo, archived []ping.RepoStatus) {
 	fmt.Printf("- Total Dependencies: %d\n", len(info.Requires))
 	fmt.Printf("- Direct Dependencies: %d\n", directDeps)
 	fmt.Printf("- Unmaintained Dependencies: %d\n", archivedCount)
-}
-
-// ProgressCallback returns a function that can be used to report progress
-func ProgressCallback(quiet *bool) func(string, string) {
-	return func(dep string, status string) {
-		if !*quiet {
-			fmt.Printf("%-50s\n", dep)
-			if status != "" {
-				fmt.Printf(strings.Repeat(" ", 50))
-				fmt.Printf("[%s]\n", status)
-			}
-		}
-	}
 }

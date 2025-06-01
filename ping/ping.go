@@ -27,6 +27,7 @@ type RepoStatus struct {
 type Client struct {
 	httpClient           *http.Client
 	unmaintainedDuration time.Duration // Duration after which a module is considered unmaintained
+	progress             func(dependency string, status string)
 }
 
 // NewClient creates a new client
@@ -42,11 +43,13 @@ func (c *Client) SetUnmaintainedDuration(d time.Duration) {
 	c.unmaintainedDuration = d
 }
 
-// ProgressCallback is a type for the progress callback function
-type ProgressCallback func(dependency string, status string)
+// SetProgressCallback sets the callback function to report progress
+func (c *Client) SetProgressCallback(callback func(dependency string, status string)) {
+	c.progress = callback
+}
 
 // PingPackage checks which dependencies appear to be archived by checking their status on pkg.go.dev
-func (c *Client) PingPackage(deps []parser.Dependency, progress ProgressCallback) []RepoStatus {
+func (c *Client) PingPackage(deps []parser.Dependency) []RepoStatus {
 	// Filter out indirect dependencies
 	var directDeps []parser.Dependency
 	for _, dep := range deps {
@@ -83,21 +86,21 @@ func (c *Client) PingPackage(deps []parser.Dependency, progress ProgressCallback
 
 			if err != nil {
 				status.Error = err.Error()
-				progress(dep.Path, "Error: "+err.Error())
+				c.progress(dep.Path, "Error: "+err.Error())
 			} else {
 				// Primary check: Is the published date older than the configured duration?
 				if !publishDate.IsZero() && time.Since(publishDate) > c.unmaintainedDuration {
 					status.IsArchived = true
 					status.Reason = fmt.Sprintf("Not updated since %s", publishDate.Format("Jan 2, 2006"))
-					progress(dep.Path, "Archived (Last published: "+publishDate.Format("Jan 2, 2006")+")")
+					c.progress(dep.Path, "Archived (Last published: "+publishDate.Format("Jan 2, 2006")+")")
 				} else if statusCode == http.StatusNotFound {
 					// Secondary check: Is the package not found on pkg.go.dev?
 					status.IsArchived = true
 					status.Reason = "404 from pkg.go.dev"
-					progress(dep.Path, "Archived (Not found on pkg.go.dev)")
+					c.progress(dep.Path, "Archived (Not found on pkg.go.dev)")
 				} else {
 					// Recent publish date and status code is OK
-					progress(dep.Path, "Active (Last published: "+publishDate.Format("Jan 2, 2006")+")")
+					c.progress(dep.Path, "Active (Last published: "+publishDate.Format("Jan 2, 2006")+")")
 				}
 			}
 
