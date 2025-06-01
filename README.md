@@ -51,14 +51,14 @@ Options:
         Consider dependencies as unmaintained if not updated since this duration (e.g. 1y, 6m, 2y3m) (default "2y")
 ```
 
-### Duration Format for -since
+### Duration Format for `-since`
 
 The `-since` flag accepts durations in several formats:
 
-- Years: `2y` (2 years)
-- Months: `6m` (6 months)
-- Years and months: `1y6m` (1 year and 6 months)
-- Standard Go duration format: `720h` (30 days)
+```
+-since 3y
+-since 2y5m
+```
 
 ## Example
 
